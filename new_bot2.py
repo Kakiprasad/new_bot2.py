@@ -7,12 +7,12 @@ import datetime
 import pytz
 import telebot
 import threading
-from deep_translator import GoogleTranslator  # --- UPDATED --- (కొత్త లైబ్రరీ)
+from deep_translator import GoogleTranslator
 
 # -------- RENDER ENVIRONMENT VARIABLES --------
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY") # Renderలో ఈ పేరుతో Key ఇవ్వండి
 
 # -------- SETTINGS --------
 IST = pytz.timezone('Asia/Kolkata')
@@ -29,16 +29,14 @@ RSS_FEEDS = [
 ]
 
 # -------- TRANSLATOR FUNCTION --------
-# --- UPDATED START --- (ఈ ఫంక్షన్ కొత్తగా చేర్చబడింది)
 def translate_to_telugu(text):
     try:
         return GoogleTranslator(source='auto', target='te').translate(text)
     except Exception as e:
         print(f"Translation Error: {e}")
         return text
-# --- UPDATED END ---
 
-# -------- GROQ CALL (Gemini బదులుగా) --------
+# -------- GROQ API CALL (Gemini బదులుగా) --------
 def call_groq(prompt):
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
@@ -46,17 +44,22 @@ def call_groq(prompt):
         "Content-Type": "application/json"
     }
     payload = {
-        "model": "llama-3.3-70b-versatile", # మీరు కావాలంటే వేరే మోడల్ వాడుకోవచ్చు
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.7
+        "model": "llama-3.3-70b-versatile",
+        "messages": [
+            {"role": "system", "content": "You are a helpful stock market analyst. Provide output in Telugu only."},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.5
     }
     try:
-        r = requests.post(url, json=payload, headers=headers, timeout=20)
+        r = requests.post(url, json=payload, headers=headers, timeout=25)
         if r.status_code == 200:
             return r.json()['choices'][0]['message']['content'].strip()
-        return "⚠️ Groq AI విశ్లేషణ అందుబాటులో లేదు."
+        else:
+            return f"⚠️ Groq API Error: {r.status_code}"
     except Exception as e:
-        return f"⚠️ Groq Error: {e}"
+        return f"⚠️ Connection Error: {e}"
+
 # -------- ANALYSIS --------
 def get_ai_analysis(title):
     prompt = f"""
@@ -71,31 +74,32 @@ def get_ai_analysis(title):
 6️⃣ మార్కెట్ ప్రభావం: ధర పెరుగుతుందా లేదా తగ్గుతుందా?
 9️⃣ AI వివరణ: భవిష్యత్తులో ఏం జరగవచ్చు?
 """
-    return call_gemini(prompt)
+    return call_groq(prompt)
 
 # -------- SUMMARIES --------
 def get_short_summary():
     if not summary_storage: return "ముఖ్యమైన వార్తలు ఏమీ లేవు."
     all_titles = "\n".join([f"- {t}" for t in summary_storage])
-    prompt = f"ఈ వార్తల ఆధారంగా మార్కెట్ SMART SUMMARY తయారు చేయండి:\n{all_titles}"
-    return f"📊 మార్కెట్ SMART SUMMARY & OUTLOOK\n\n{call_gemini(prompt)}"
+    prompt = f"ఈ వార్తల ఆధారంగా మార్కెట్ SMART SUMMARY తెలుగులో తయారు చేయండి:\n{all_titles}"
+    return f"📊 **మార్కెట్ SMART SUMMARY & OUTLOOK**\n\n{call_groq(prompt)}"
 
 def get_long_summary():
     if not summary_storage: return "స్టాక్ వార్తలు ఏమీ లేవు."
     all_titles = "\n".join([f"- {t}" for t in summary_storage])
     prompt = f"స్టాక్ వార్తలను 'Stock Name (English): వార్త (Telugu)' ఫార్మాట్ లో ఇవ్వండి:\n{all_titles}"
-    return f"🚀 ముఖ్యమైన స్టాక్ వార్తలు:\n\n{call_gemini(prompt)}"
+    return f"🚀 **ముఖ్యమైన స్టాక్ వార్తలు:**\n\n{call_groq(prompt)}"
 
 # -------- MAIN LOOP --------
 def news_loop():
     global last_sent_summary_time
-    print("🚀 న్యూస్ లూప్ రన్ అవుతోంది...")
+    print("🚀 Groq న్యూస్ లూప్ రన్ అవుతోంది...")
 
     while True:
         try:
             now_ist = datetime.datetime.now(IST)
             now_str = now_ist.strftime("%H:%M")
 
+            # సమ్మరీ రిపోర్ట్స్
             if now_str in ["04:00", "08:00", "13:30", "20:30"] and last_sent_summary_time != now_str:
                 bot.send_message(CHAT_ID, get_short_summary())
                 last_sent_summary_time = now_str
@@ -115,14 +119,14 @@ def news_loop():
                         if entry.link in sent_links: continue
                         
                         original_title = unescape(entry.title)
+                        telugu_title = translate_to_telugu(original_title)
+                        analysis = get_ai_analysis(telugu_title)
                         
-                        # --- UPDATED START ---
-                        telugu_title = translate_to_telugu(original_title) # టైటిల్ తెలుగులోకి మార్పు
-                        analysis = get_ai_analysis(telugu_title) # తెలుగు టైటిల్ తో AI విశ్లేషణ
-                        
-                        # కింద మెసేజ్ ఫార్మాట్ లో 'Source' అని మార్చబడింది
-                        msg = f"📢 **Source:** {feed['source']}\n\n📰 **వార్త:** {telugu_title}\n\n🤖 **AI విశ్లేషణ:**\n{analysis}\n\n🔗 [లింక్]({entry.link})\n\n📡 Sent via: Render 🚀"
-                        # --- UPDATED END ---
+                        msg = f"📢 **Source:** {feed['source']}\n\n" \
+                              f"📰 **వార్త:** {telugu_title}\n\n" \
+                              f"🤖 **AI విశ్లేషణ:**\n{analysis}\n\n" \
+                              f"🔗 [లింక్]({entry.link})\n\n" \
+                              f"📡 Sent via: Render 🚀"
                         
                         try:
                             bot.send_message(CHAT_ID, msg, parse_mode="Markdown")
@@ -130,7 +134,7 @@ def news_loop():
                             bot.send_message(CHAT_ID, msg)
 
                         sent_links.add(entry.link)
-                        summary_storage.append(telugu_title) # --- UPDATED --- (తెలుగు టైటిల్ సేవ్ అవుతుంది)
+                        summary_storage.append(telugu_title)
                         time.sleep(25) 
                 except Exception as e:
                     print(f"⚠️ ఫీడ్ ఎర్రర్: {e}")
@@ -150,8 +154,11 @@ if __name__ == "__main__":
                 sent_links.add(entry.link)
         except: pass
     
-    print(f"✅ సిద్ధంగా ఉంది. బాట్ రన్ అవుతోంది...")
+    print(f"✅ సిద్ధంగా ఉంది. Groq బాట్ రన్ అవుతోంది...")
     t1 = threading.Thread(target=news_loop)
+    t1.daemon = True
+    t1.start()
+    bot.infinity_polling()
     t1.daemon = True
     t1.start()
     bot.infinity_polling()
