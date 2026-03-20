@@ -1,0 +1,6 @@
+pyTelegramBotAPI
+requests
+feedparser
+pytz
+deep-translator
+httpx==0.28.1
