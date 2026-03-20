@@ -38,21 +38,25 @@ def translate_to_telugu(text):
         return text
 # --- UPDATED END ---
 
-# -------- GEMINI CALL --------
-def call_gemini(prompt):
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+# -------- GROQ CALL (Gemini బదులుగా) --------
+def call_groq(prompt):
+    url = "https://api.groq.com/openai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {GROQ_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "llama-3.3-70b-versatile", # మీరు కావాలంటే వేరే మోడల్ వాడుకోవచ్చు
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.7
+    }
     try:
-        r = requests.post(url, json=payload, timeout=25)
-        if r.status_code == 429:
-            return "⚠️ కోటా ముగిసింది! AI విశ్లేషణ అందుబాటులో లేదు."
-        if r.status_code != 200:
-            return "⚠️ AI విశ్లేషణ అందుబాటులో లేదు."
-        data = r.json()
-        return data['candidates'][0]['content']['parts'][0]['text'].strip()
+        r = requests.post(url, json=payload, headers=headers, timeout=20)
+        if r.status_code == 200:
+            return r.json()['choices'][0]['message']['content'].strip()
+        return "⚠️ Groq AI విశ్లేషణ అందుబాటులో లేదు."
     except Exception as e:
-        return "⚠️ AI విశ్లేషణ చేయడంలో సమస్య వచ్చింది."
-
+        return f"⚠️ Groq Error: {e}"
 # -------- ANALYSIS --------
 def get_ai_analysis(title):
     prompt = f"""
