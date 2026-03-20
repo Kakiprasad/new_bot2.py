@@ -12,7 +12,7 @@ from deep_translator import GoogleTranslator
 # -------- RENDER ENVIRONMENT VARIABLES --------
 TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY") # Renderలో ఈ పేరుతో Key ఇవ్వండి
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY") 
 
 # -------- SETTINGS --------
 IST = pytz.timezone('Asia/Kolkata')
@@ -36,7 +36,7 @@ def translate_to_telugu(text):
         print(f"Translation Error: {e}")
         return text
 
-# -------- GROQ API CALL (Gemini బదులుగా) --------
+# -------- GROQ API CALL --------
 def call_groq(prompt):
     url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
@@ -46,7 +46,7 @@ def call_groq(prompt):
     payload = {
         "model": "llama-3.3-70b-versatile",
         "messages": [
-            {"role": "system", "content": "You are a helpful stock market analyst. Provide output in Telugu only."},
+            {"role": "system", "content": "You are a stock market analyst. Provide output in Telugu only."},
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.5
@@ -55,10 +55,9 @@ def call_groq(prompt):
         r = requests.post(url, json=payload, headers=headers, timeout=25)
         if r.status_code == 200:
             return r.json()['choices'][0]['message']['content'].strip()
-        else:
-            return f"⚠️ Groq API Error: {r.status_code}"
+        return "⚠️ AI విశ్లేషణ అందుబాటులో లేదు."
     except Exception as e:
-        return f"⚠️ Connection Error: {e}"
+        return f"⚠️ Error: {e}"
 
 # -------- ANALYSIS --------
 def get_ai_analysis(title):
@@ -99,7 +98,6 @@ def news_loop():
             now_ist = datetime.datetime.now(IST)
             now_str = now_ist.strftime("%H:%M")
 
-            # సమ్మరీ రిపోర్ట్స్
             if now_str in ["04:00", "08:00", "13:30", "20:30"] and last_sent_summary_time != now_str:
                 bot.send_message(CHAT_ID, get_short_summary())
                 last_sent_summary_time = now_str
@@ -144,6 +142,7 @@ def news_loop():
             print(f"❗ లూప్ ఎర్రర్: {e}")
             time.sleep(10)
 
+# -------- EXECUTION (ఇక్కడ ఎర్రర్ సరిచేయబడింది) --------
 if __name__ == "__main__":
     print("⌛ పాత వార్తలను లోడ్ చేస్తున్నాను...")
     for feed in RSS_FEEDS:
@@ -152,13 +151,14 @@ if __name__ == "__main__":
             parsed = feedparser.parse(resp.content)
             for entry in parsed.entries:
                 sent_links.add(entry.link)
-        except: pass
+        except:
+            pass
     
-    print(f"✅ సిద్ధంగా ఉంది. Groq బాట్ రన్ అవుతోంది...")
+    print(f"✅ సిద్ధంగా ఉంది. బాట్ రన్ అవుతోంది...")
+    
+    # కింద ఉన్న రెండు లైన్ల స్పేసింగ్ కరెక్ట్ గా ఉండాలి
     t1 = threading.Thread(target=news_loop)
     t1.daemon = True
     t1.start()
-    bot.infinity_polling()
-    t1.daemon = True
-    t1.start()
+    
     bot.infinity_polling()
